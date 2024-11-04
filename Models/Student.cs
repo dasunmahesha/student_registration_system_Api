@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace StudentRegApi.Models
 {
+
     public class Student
     {
         [Key]

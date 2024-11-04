@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using StudentRegApi.DB;
 using StudentRegApi.Models;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using StudentRegApi.Services;
 
 namespace StudentRegApi.Controllers
 {
@@ -11,9 +13,12 @@ namespace StudentRegApi.Controllers
     public class StudentController : Controller
     {
         private readonly StudentDb studentDb;
-        public StudentController(StudentDb studentDb)
+        private readonly S3Service s3Service;
+
+        public StudentController(StudentDb studentDb, S3Service s3Service)
         {
             this.studentDb = studentDb;
+            this.s3Service = s3Service;
         }
 
         [HttpGet]
@@ -41,20 +46,30 @@ namespace StudentRegApi.Controllers
             return Ok(student);
         }
 
-
-
         [HttpPost]
-        public async Task<IActionResult> AddStudent([FromBody] Student studentreg)
+        public async Task<IActionResult> AddStudent([FromForm] StudentDto studentDto)
         {
-            await studentDb.Student.AddAsync(studentreg);
+            var imageUrl = await s3Service.UploadFileAsync(studentDto.Image);
+            var student = new Student
+            {
+                FirstName = studentDto.FirstName,
+                LastName = studentDto.LastName,
+                Mobile = studentDto.Mobile,
+                Email = studentDto.Email,
+                NIC = studentDto.NIC,
+                DateOfBirth = studentDto.DateOfBirth,
+                Address = studentDto.Address,
+                ProfileImageUrl = imageUrl
+            };
+            await studentDb.Student.AddAsync(student);
             await studentDb.SaveChangesAsync();
 
-            return Ok(studentreg);
+            return Ok(student);
         }
 
         [HttpPut]
         [Route("{id}")]
-        public async Task<IActionResult> UpdateStudent([FromRoute] string id,Student updatestudent) 
+        public async Task<IActionResult> UpdateStudent([FromRoute] string id, [FromForm] StudentDto studentDto)
         {
             if (!int.TryParse(id, out int studentId))
             {
@@ -62,35 +77,40 @@ namespace StudentRegApi.Controllers
             }
             var student = await studentDb.Student.FindAsync(studentId);
 
-            if (student==null) {
-
+            if (student == null)
+            {
                 return NotFound();
             }
-            student.FirstName = updatestudent.FirstName;
-            student.LastName = updatestudent.LastName;
-            student.NIC = updatestudent.NIC;
-            student.Address = updatestudent.Address;
-            student.Mobile = updatestudent.Mobile;
-            student.Email = updatestudent.Email;
-            student.ProfileImageUrl = updatestudent.ProfileImageUrl;
-            student.DateOfBirth = updatestudent.DateOfBirth;
 
+            if (studentDto.Image != null)
+            {
+                var imageUrl = await s3Service.UploadFileAsync(studentDto.Image);
+                student.ProfileImageUrl = imageUrl;
+            }
+
+            student.FirstName = studentDto.FirstName;
+            student.LastName = studentDto.LastName;
+            student.NIC = studentDto.NIC;
+            student.Address = studentDto.Address;
+            student.Mobile = studentDto.Mobile;
+            student.Email = studentDto.Email;
+            student.DateOfBirth = studentDto.DateOfBirth;
 
             await studentDb.SaveChangesAsync();
             return Ok(student);
-
         }
+
         [HttpDelete]
         [Route("{id}")]
-        public async Task<IActionResult> DeleteStudent([FromRoute] string id) 
+        public async Task<IActionResult> DeleteStudent([FromRoute] string id)
         {
             if (!int.TryParse(id, out int studentId))
             {
                 return BadRequest("Invalid student ID");
             }
-            var student = await studentDb.Student.FindAsync();
+            var student = await studentDb.Student.FindAsync(studentId);
 
-            if(student==null)
+            if (student == null)
             {
                 return NotFound();
             }
@@ -99,7 +119,17 @@ namespace StudentRegApi.Controllers
 
             return Ok();
         }
+    }
 
-
+    public class StudentDto
+    {
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public int Mobile { get; set; }
+        public string Email { get; set; }
+        public long NIC { get; set; }
+        public DateTime DateOfBirth { get; set; }
+        public string Address { get; set; }
+        public IFormFile Image { get; set; }
     }
 }

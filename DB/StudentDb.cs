@@ -9,6 +9,7 @@ namespace StudentRegApi.DB
         {
         }
 
+
         public DbSet<Student> Student { get; set; }
     }
 }
